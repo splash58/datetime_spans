@@ -13,14 +13,16 @@ class Span:
     def empty():
         return Span(datetime.min, datetime.min)
 
-    def __init__(self, start: datetime, end: datetime):
+    def __init__(self, start: datetime, end: datetime) -> Span:
+        """
+
+        :param start:
+        :param end:
+        """
         self.start = copy(start)
         self.end = copy(end)
         if end < start:
             raise ValueError('End before Start')
-
-    def __contains__(self, item: datetime) -> bool:
-        return self.start <= item < self.end
 
     def __str__(self) -> str:
         if self.start == self.end:
@@ -40,14 +42,50 @@ class Span:
             return f'Range.empty()'
         return f'Range({self.start.__repr__()}, {self.end.__repr__()})'
 
+    def __contains__(self, item: datetime) -> bool:
+        return self.start <= item < self.end
+
+    def __copy__(self) -> Span:
+        return Span(self.start, self.end)
+
+    def __bool__(self):
+        return not self.start == self.end
+
+    def __sub__(self, other: Span) -> SpanList:
+        self._checkOther(other, '-')
+        if self < other:
+            return SpanList([])
+        if not self.overlap(other):
+            return SpanList([copy(self)])
+        res = []
+        if self.start < other.start:
+            res.append(Span(self.start, other.start))
+        if other.end < self.end:
+            res.append(Span(other.end, self.end))
+        return SpanList(res)
+
+    def __add__(self, other: Span) -> SpanList:
+        self._checkOther(other, '+')
+        if other < self:
+            return SpanList([copy(self)])
+        if self.overlap_or_boundary(other):
+            res = copy(self)
+            res |= other
+            return SpanList([res])
+        return SpanList([
+            copy(self),
+            copy(other),
+        ])
+
+    def __and__(self, other: Span) -> Span:
+        if not self.overlap(other):
+            return Span.empty()
+        return Span(max(self.start, other.start), min(self.end, other.end))
+
     def __eq__(self, other: Span) -> bool:
         if not isinstance(other, Span):
             raise TypeError(f'unsupported operand type(s) for ==: {type(self)} and {type(other)}')
         return other.start == self.start and other.end == other.end
-
-    def _checkOther(self, other: Span, op: str):
-        if not isinstance(other, Span):
-            raise TypeError(f'unsupported operand type(s) for {op}: {type(self)} and {type(other)}')
 
     def __lt__(self, other: Span | timedelta) -> bool:
         if isinstance(other, timedelta):
@@ -87,6 +125,23 @@ class Span:
     def overlap_or_boundary(self, other: Span) -> bool:
         return self.start <= other.end and other.start <= self.end
 
+    def duration(self):
+        return self.end - self.start
+
+    def split(self, delta: timedelta, full=False):
+        res = []
+        start = copy(self.start)
+        while start + delta < self.end:
+            res.append(Span(start, start + delta))
+            start += delta
+        if not full:
+            res.append(Span(start, self.end))
+        return SpanList(res)
+
+    def _checkOther(self, other: Span, op: str):
+        if not isinstance(other, Span):
+            raise TypeError(f'unsupported operand type(s) for {op}: {type(self)} and {type(other)}')
+
     def __ior__(self, other: Span) -> Span:
         if not self.overlap_or_boundary(other):
             raise ValueError('range needs to overlap')
@@ -103,63 +158,30 @@ class Span:
             self.end = min(self.end, other.end)
         return self
 
-    def __copy__(self) -> Span:
-        return Span(self.start, self.end)
-
-    def __sub__(self, other: Span) -> SpanList:
-        self._checkOther(other, '-')
-        if self < other:
-            return SpanList([])
-        if not self.overlap(other):
-            return SpanList([copy(self)])
-        res = []
-        if self.start < other.start:
-            res.append(Span(self.start, other.start))
-        if other.end < self.end:
-            res.append(Span(other.end, self.end))
-        return SpanList(res)
-
-    def __add__(self, other: Span) -> SpanList:
-        self._checkOther(other, '+')
-        if other < self:
-            return SpanList([copy(self)])
-        if self.overlap_or_boundary(other):
-            res = copy(self)
-            res |= other
-            return SpanList([res])
-        return SpanList([
-            copy(self),
-            copy(other),
-        ])
-
-    def __and__(self, other: Span) -> Span:
-        if not self.overlap(other):
-            return Span.empty()
-        return Span(max(self.start, other.start), min(self.end, other.end))
-
-    def __bool__(self):
-        return not self.start == self.end
-
-    def duration(self):
-        return self.end - self.start
-
-    def split(self, delta: timedelta, full=False):
-        res = []
-        start = copy(self.start)
-        while start + delta < self.end:
-            res.append(Span(start, start + delta))
-            start += delta
-        if not full:
-            res.append(Span(start, self.end))
-        return SpanList(res)
-
 
 class SpanList:
 
     merge = False
     format_spec = None
 
-    def __init__(self, ranges: [Span, datetime] = None, end: datetime = None):
+    @property
+    def start(self) -> datetime:
+        if not self.ranges:
+            raise AttributeError('Empty Ranges')
+        return self.ranges[0].start
+
+    @property
+    def end(self) -> SpanList:
+        if not self.ranges:
+            raise AttributeError('Empty Ranges')
+        return self.ranges[-1].end
+
+    def __init__(self, ranges: [Span, datetime, List] = None, end: datetime = None):
+        """
+
+        :param ranges: Span | datetime | List :
+        :param end: date
+        """
         self.ranges: [Span] = []
         if ranges is not None:
             if isinstance(ranges, datetime):
@@ -191,10 +213,9 @@ class SpanList:
         self.ranges = result
         return self
 
-    def __bool__(self):
-        return bool(len(self.ranges))
-
     def __str__(self):
+        if not self.ranges:
+            return f'[ empty ]'
         if self.format_spec:
             string = ",\n  ".join(format(x, self.format_spec) for x in self.ranges)
         else:
@@ -207,48 +228,24 @@ class SpanList:
 
     def __repr__(self):
         string = ",\n    ".join(repr(x) for x in self.ranges)
-        return f'Ranges([\n    {string}\n])'
+        if string:
+            return f'Ranges([\n    {string}\n])'
+        return f'Ranges([])'
 
-    @property
-    def start(self) -> datetime:
-        if not self.ranges:
-            raise AttributeError('Empty Ranges')
-        return self.ranges[0].start
-
-    @property
-    def end(self) -> SpanList:
-        if not self.ranges:
-            raise AttributeError('Empty Ranges')
-        return self.ranges[-1].end
-
-    def append(self, other: Span) -> SpanList:
-        if not isinstance(other, Span):
-            raise TypeError(f'unsupported operand type(s) for append: {type(other)}')
-        self.ranges.append(copy(other))
-        self.normalize()
-        return self
-
-    def extend(self, other: list[Span]) -> SpanList:
-        if not isinstance(other, list):
-            raise TypeError(f'unsupported operand type(s) for extend: {type(other)}')
-        for x in other:
-            if not isinstance(x, Span):
-                raise TypeError(f'unsupported operand type(s) for extend: {type(x)}')
-            self.ranges.append(copy(x))
-        self.normalize()
-        return self
+    def __bool__(self):
+        return bool(len(self.ranges))
 
     def __getitem__(self, item):
         return self.ranges[item]
 
-    def duration(self):
-        return sum([x.duration() for x in self.ranges], timedelta())
+    def __delitem__(self, key):
+        del self.ranges[key]
 
     def __add__(self, other: Span | SpanList) -> SpanList:
         if isinstance(other, Span):
-            self.append(other)
+            self._append(other)
         elif isinstance(other, SpanList):
-            self.extend(other.ranges)
+            self._extend(other.ranges)
         else:
             raise TypeError(f'unsupported operand type(s) for +: {type(self)} and {type(other)}')
         return self
@@ -268,9 +265,6 @@ class SpanList:
             raise TypeError(f'unsupported operand type(s) for +: {type(self)} and {type(other)}')
         return SpanList(res)
 
-    def __delitem__(self, key):
-        del self.ranges[key]
-
     def __and__(self, other: Span | SpanList):
         res = []
         if isinstance(other, Span):
@@ -288,3 +282,23 @@ class SpanList:
     __iadd__ = __add__
     __isub__ = __sub__
     __iand__ = __and__
+
+    def duration(self):
+        return sum([x.duration() for x in self.ranges], timedelta())
+
+    def _append(self, other: Span) -> SpanList:
+        if not isinstance(other, Span):
+            raise TypeError(f'unsupported operand type(s) for append: {type(other)}')
+        self.ranges.append(copy(other))
+        self.normalize()
+        return self
+
+    def _extend(self, other: list[Span]) -> SpanList:
+        if not isinstance(other, list):
+            raise TypeError(f'unsupported operand type(s) for extend: {type(other)}')
+        for x in other:
+            if not isinstance(x, Span):
+                raise TypeError(f'unsupported operand type(s) for extend: {type(x)}')
+            self.ranges.append(copy(x))
+        self.normalize()
+        return self
