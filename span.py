@@ -99,7 +99,7 @@ class Span:
         if isinstance(other, timedelta):
             return self.duration() <= other
         elif isinstance(self, Span):
-            return self.start >= other.start and self.end >= other.end
+            return self.start >= other.start and self.end <= other.end
         raise TypeError(f'unsupported operand type(s) for <=: {type(self)} and {type(other)}')
 
     def __gt__(self, other: Span | timedelta) -> bool:
@@ -128,12 +128,13 @@ class Span:
     def duration(self):
         return self.end - self.start
 
-    def split(self, delta: timedelta, full=False):
+    def split(self, delta: timedelta, full=False, rest=timedelta()):
         res = []
         start = copy(self.start)
-        while start + delta < self.end:
-            res.append(Span(start, start + delta))
-            start += delta
+        while start + delta - rest < self.end:
+            res.append(Span(start, start + delta -rest))
+            start += delta - rest
+            rest = timedelta()
         if not full:
             res.append(Span(start, self.end))
         return SpanList(res)
@@ -285,6 +286,16 @@ class SpanList:
 
     def duration(self):
         return sum([x.duration() for x in self.ranges], timedelta())
+
+    def split(self, delta: timedelta, full=False, transfer=False):
+        res = []
+        rest = timedelta()
+        for x in self.ranges:
+            temp = x.split(delta, full=full, rest=rest)
+            if transfer:
+                res = x.duration() - temp.duration()
+            res.extend(temp)
+        return SpanList(res)
 
     def _append(self, other: Span) -> SpanList:
         if not isinstance(other, Span):
