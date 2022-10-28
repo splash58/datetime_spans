@@ -30,13 +30,15 @@ It means that the start point is in the interval but the end point is out
     ]
 
     # customer wants
-    >>> can = Span(datetime.strptime("10:30", "%H:%M"), datetime.strptime("13:15", "%H:%M"))
+    >>> want = Span(datetime.strptime("10:30", "%H:%M"), datetime.strptime("13:15", "%H:%M"))
     # suitable appointments
-    >>> SpanList([x for x in appointments if x <= can]).__format__("%H:%M")
+    >>> SpanList([x for x in appointments if x <= want]).__format__("%H:%M")
     [
        [11:00..12:00),
        [12:00..13:00)
     ]
 
 ### Span Class description
+
+### SpanList Class description
 
