@@ -13,7 +13,7 @@ class Span:
     def empty():
         return Span(datetime.min, datetime.min)
 
-    def __init__(self, start: datetime, end: datetime) -> Span:
+    def __init__(self, start: datetime, end: datetime):
         """
 
         :param start:
@@ -51,7 +51,10 @@ class Span:
     def __bool__(self):
         return not self.start == self.end
 
-    def __sub__(self, other: Span) -> SpanList:
+    def __sub__(self, other: Span | timedelta) -> Span | SpanList:
+        if isinstance(other, timedelta):
+            end = max(self.start, self.end - other)
+            return Span(self.start, end)
         self._checkOther(other, '-')
         if self < other:
             return SpanList([])
@@ -64,7 +67,10 @@ class Span:
             res.append(Span(other.end, self.end))
         return SpanList(res)
 
-    def __add__(self, other: Span) -> SpanList:
+    def __add__(self, other: Span | timedelta) -> Span | SpanList:
+        if isinstance(other, timedelta):
+            end = self.end + other
+            return Span(self.start, end)
         self._checkOther(other, '+')
         if other < self:
             return SpanList([copy(self)])
@@ -120,7 +126,7 @@ class Span:
     def overlap(self, other: Span) -> bool:
         self._checkOther(other, 'overlap')
         return self.overlap_or_boundary(other) and \
-               other.start != self.end and other.end != self.start
+            other.start != self.end and other.end != self.start
 
     def overlap_or_boundary(self, other: Span) -> bool:
         return self.start <= other.end and other.start <= self.end
@@ -132,7 +138,7 @@ class Span:
         res = []
         start = copy(self.start)
         while start + delta - rest < self.end:
-            res.append(Span(start, start + delta -rest))
+            res.append(Span(start, start + delta - rest))
             start += delta - rest
             rest = timedelta()
         if not full:
@@ -177,7 +183,7 @@ class SpanList:
             raise AttributeError('Empty Ranges')
         return self.ranges[-1].end
 
-    def __init__(self, ranges: [Span, datetime, List] = None, end: datetime = None):
+    def __init__(self, ranges: [Span, datetime, list] = None, end: datetime = None):
         """
 
         :param ranges: Span | datetime | List :
@@ -259,8 +265,7 @@ class SpanList:
         elif isinstance(other, SpanList):
             c = copy(self)
             for r in other.ranges:
-                for x in self.ranges:
-                    c -= r
+                c -= r
             return c
         else:
             raise TypeError(f'unsupported operand type(s) for +: {type(self)} and {type(other)}')
