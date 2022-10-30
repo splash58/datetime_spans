@@ -242,7 +242,20 @@ class SpanList:
     def __bool__(self):
         return bool(len(self.ranges))
 
-    def __getitem__(self, item):
+    def __eq__(self, other: SpanList) -> bool:
+        if not isinstance(other, SpanList):
+            raise TypeError(f'unsupported operand type(s) for ==: {type(self)} and {type(other)}')
+        if len(self) != len(other):
+            return False
+        for i, x in enumerate(self.ranges):
+            if x != other[i]:
+                return False
+        return True
+
+    def __len__(self):
+        return len(self.ranges)
+
+    def __getitem__(self, item: int) -> Span:
         return self.ranges[item]
 
     def __delitem__(self, key):

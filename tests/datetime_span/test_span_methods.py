@@ -19,3 +19,11 @@ class TestSpanInstance(object):
         assert test.overlap(test1)
         assert test.overlap_or_boundary(test1)
         assert (test & test1) == Span(now + timedelta(minutes=5), now + timedelta(minutes=10))
+
+    def test_duration(self):
+        now = datetime.now()
+        test = Span(now, now + timedelta(minutes=10))
+        assert test.duration() == timedelta(minutes=10)
+
+    def test_split(self):
+        pass
