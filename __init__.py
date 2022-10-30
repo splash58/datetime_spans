@@ -1,3 +1,3 @@
-from .span import *
+from spans import *
 
 __all__ = ['Span', 'SpanList']

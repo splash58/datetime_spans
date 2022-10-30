@@ -91,7 +91,7 @@ class Span:
     def __eq__(self, other: Span) -> bool:
         if not isinstance(other, Span):
             raise TypeError(f'unsupported operand type(s) for ==: {type(self)} and {type(other)}')
-        return other.start == self.start and other.end == other.end
+        return other.start == self.start and other.end == self.end
 
     def __lt__(self, other: Span | timedelta) -> bool:
         if isinstance(other, timedelta):
