@@ -5,6 +5,7 @@ from copy import copy
 
 from spans import *
 
+
 class TestSpanInstance(object):
     def test_bool(self):
         now = datetime.now()

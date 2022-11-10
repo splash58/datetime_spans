@@ -6,7 +6,7 @@ from copy import copy
 from spans import *
 
 
-class TestSpanArithmetic(object):
+class TestSpanArithmetic:
 
     def test_add_timedelta(self):
         # other: timedelta
